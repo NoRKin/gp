@@ -14,6 +14,8 @@ float operation_run(int operation, float a, float b) {
   if (operation == 3) {
     return a - b;
   }
+
+  return 0;
 }
 
 char operation_label(int operation) {
@@ -29,4 +31,6 @@ char operation_label(int operation) {
   if (operation == 3) {
     return '-';
   }
+
+  return '!';
 }
