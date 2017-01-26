@@ -50,8 +50,6 @@ void quicksort(float *A, int len)
   quicksort(A + i, len - i);
 }
 
-
-
 float naive_average(float *a, int n) {
   float sum = 0;
 
@@ -61,11 +59,37 @@ float naive_average(float *a, int n) {
   return sum / n;
 }
 
-void crossover(node *father, node *mother, node **population, int childIndex) {
+float max(float a, float b) {
+  if (a > b)
+    return a;
+  else
+    return b;
+}
+
+float min(float a, float b) {
+  if (a < b)
+    return a;
+  else
+    return b;
+}
+
+/*void crossover(node *father, node *mother, node **population, int childIndex) {*/
   // population[childIndex] will become a mix between father, mother
   // traverse father
   // insert random mother node
+/*}*/
+
+void crossover(node **population, int population_count, float *results, float percentage) {
+  int max = floor(population_count * percentage);
+  int i = 0;
+
+  // Choose two individual -> Select the best
+  for(i = 0; i < max; i++) {
+      Node *father = population[rand() % population_count];
+
+  }
 }
+
 
 void mutate() {
   // Traverse tree
@@ -159,10 +183,10 @@ void display_top(float *results, int n) {
   }
 }
 
-float quartile(float *results, int length) {
-  int quartile = length / 4;
+float percentile(float *results, int length, float top) {
+  int portionIndex = floor(length * top);
 
-  return results[quartile * 1];
+  return results[portionIndex];
 }
 
 void test(FILE *logFile) {
@@ -189,7 +213,7 @@ void test(FILE *logFile) {
     generate_tree(population[i], 2, 1, max_depth, FEATURE_COUNT);
   }
 
-    puts("Generating pop done for 5M individuals");
+  puts("Generating pop done for 5M individuals");
   float threshold;
 
   timestamp_t t3, t4;
@@ -205,7 +229,7 @@ void test(FILE *logFile) {
     int index = 0;
     quicksort(results, population_count);
     printf("Score: %f\n", naive_average(results, population_count));
-    float threshold = quartile(results, population_count);
+    float threshold = percentile(results, population_count, 0.9); // 90%
     printf("Low Quartile is: %f\n", threshold);
     /*printf("Best: %lf\n", results[0]);*/
     display_top(results, 10);
@@ -214,7 +238,7 @@ void test(FILE *logFile) {
     double t_secs = (t4 - t3) / 1000000.0L;
 
     selection(population, population_count, featuresPtr, DATASET_SIZE, results_cpy, threshold);
-    // crossover();
+    // crossover(population, population_count, percentage);
     // mutate();
     // Crossover
     // Mutate individuals
