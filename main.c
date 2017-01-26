@@ -4,6 +4,7 @@
 #include <time.h>
 #include <math.h>
 #include <string.h>
+#include <stdbool.h>
 
 #include "node.h"
 #include "generator.h"
@@ -13,12 +14,16 @@
 typedef unsigned long long timestamp_t;
 
 
+
 // TODO JS INTERPRETER
 // TODO PARRALLELIZATION
 
+
+#define DEBUG 0
 #define MAX_DEPTH 4
 #define DATASET_SIZE 96000
 #define FEATURE_COUNT 21
+#define TREE_SIZE 256
 
 static timestamp_t get_timestamp () {
   struct timeval now;
@@ -73,21 +78,180 @@ float min(float a, float b) {
     return b;
 }
 
+int maxIndex(float *results, int a, int b) {
+  if (results[a] > results[b])
+    return a;
+  else
+    return b;
+}
+
+int minIndex(float *results, int a, int b) {
+  if (results[a] < results[b])
+    return a;
+  else
+    return b;
+}
+
+/*float select(float a, int aIndex, float b, int bIndex) {*/
+  /*// Return best*/
+
+/*}*/
+
+
+// Get two index and population, return the best
+
+
 /*void crossover(node *father, node *mother, node **population, int childIndex) {*/
   // population[childIndex] will become a mix between father, mother
   // traverse father
   // insert random mother node
 /*}*/
 
-void crossover(node **population, int population_count, float *results, float percentage) {
-  int max = floor(population_count * percentage);
+bool contains(int *array, int number) {
   int i = 0;
-
-  // Choose two individual -> Select the best
-  for(i = 0; i < max; i++) {
-      Node *father = population[rand() % population_count];
-
+  for (i = 0; i < 4; i++) {
+    if (array[i] == number)
+      return true;
   }
+
+  return false;
+}
+
+
+void uniq_rand(int *numbers, int max, int min) {
+  int i = 0;
+  int value = 0;
+  /*printf("UNIQU RAND Val is %d\n", value);*/
+  for (i = 0; i < 4; i++) {
+    while (contains(numbers, value)) {
+      value = (rand() % max) + min;
+    }
+
+    /*if (value > max)*/
+      /*value = max;*/
+    /*printf("UNIQU RAND Val is %d, %d\n", i, value);*/
+    numbers[i] = value;
+  }
+}
+
+void crossover(node **population, int population_count, float *results, float percentage) {
+  int max_pop = floor(population_count * percentage);
+  int i = 0;
+  int x = 0;
+
+  /*int compete[2];*/
+  int winners[2];
+  int losers[2];
+  int *compete = malloc(sizeof(int) * 4);
+
+  int offset = 0;
+  int depth = 0;
+
+  int offsetFrom = 0;
+  int offsetTo = 0;
+
+  printf("Max pop is %d\n", max_pop);
+  // Choose two individual -> Select the best
+  for(i = 0; i < max_pop; i++) {
+    /*puts("Before rand");*/
+    uniq_rand(compete, population_count - 1, 0);
+    /*puts("After rand");*/
+    /*compete[0] = rand() % population_count;*/
+    /*compete[1] = rand() % population_count;*/
+
+    // Lower is better (loglogss)
+    /*puts("Before min");*/
+    winners[0] = minIndex(results, compete[0], compete[1]);
+    losers[0]  = maxIndex(results, compete[0], compete[1]);
+
+    winners[1] = minIndex(results, compete[2], compete[3]);
+    losers[1]  = maxIndex(results, compete[2], compete[3]);
+    /*puts("After min");*/
+
+    // uniform Crossover two winners
+    // Select a point for crossover // Random index?
+    // Select a second point for crossover
+    /*for (x = 0; x < 64; x++) {*/
+      /*if (population[winners[0]][x].operation != -1) {*/
+
+      /*}*/
+    /*}*/
+
+    if (DEBUG == 1) {
+      printf("Before memcpy: \n");
+      printf("winner is %d - ", winners[0]);
+      display_tree(population[winners[0]], 0);
+      printf("\n");
+      printf("loser is %d  - ", losers[0]);
+      display_tree(population[losers[0]], 0);
+      printf("\n");
+    }
+
+    /*puts("Before min");*/
+    /*printf("Memcy %d, %d\n", losers[0], winners[0]);*/
+    /*memcpy(population[losers[0]], population[winners[0]], sizeof(node) * TREE_SIZE);*/
+    copy_branch(population, winners[0], losers[0], 0, 0);
+    /*puts("Memcpy okay");*/
+
+    if (DEBUG == 1) {
+      printf("After memcpy: \n");
+      display_tree(population[losers[0]], 0);
+      printf("\n");
+      fflush(stdout);
+      /*sleep(1);*/
+    }
+
+    /*puts("Segs");*/
+
+    /*puts("Before depth");*/
+    /*depth = min(tree_depth(population[winners[1]], 0, 0), tree_depth(population[losers[0]], 0, 0));*/
+    /*offset = rand() % depth;*/
+    /*printf("Offset is %d\n", offset);*/
+    offsetFrom = random_subtree(population[winners[1]], 0, 2, 20);
+    /*if (offsetFrom > 3)*/
+      /*offsetFrom = rand() % 3;*/
+    offsetTo = random_subtree(population[losers[0]], 0, 2, 20);
+    /*if (offsetTo > 3)*/
+      /*offsetTo = rand() % 3;*/
+
+    // Check if can accommodate
+
+    /*printf("From %d, to %d\n", offsetFrom, offsetTo);*/
+    copy_branch(population, winners[1], losers[0], offsetFrom, offsetTo);
+    /*puts("After Segs");*/
+
+    if (DEBUG == 1) {
+      printf("cpy branch from %d with offset %d\n", winners[1], offset);
+      display_tree(population[winners[1]], offset);
+      printf("\n");
+      printf("After cpy branch\n");
+      display_tree(population[losers[0]], 0);
+      fflush(stdout);
+      /*sleep(5);*/
+      printf("\n");
+    }
+
+
+
+    /*puts("Segs 2");*/
+    /*printf("Memcy2 %d, %d\n", losers[0], winners[0]);*/
+    /*memcpy(population[losers[1]], population[winners[1]], sizeof(node) * TREE_SIZE);*/
+    copy_branch(population, winners[1], losers[1], 0, 0);
+    /*puts("Memcpy 2 okay");*/
+
+    /*depth = min(tree_depth(population[winners[0]], 0, 0), tree_depth(population[losers[1]], 0, 0));*/
+    /*offset = rand() % depth;*/
+
+    offsetFrom = random_subtree(population[winners[0]], 0, 1, 60);
+    offsetTo = random_subtree(population[losers[1]], 0, 1, 60);
+
+    copy_branch(population, winners[0], losers[1], offsetFrom, offsetTo);
+    /*puts("After Segs 2");*/
+
+    /*printf("Crossover is %d\n", max_pop);*/
+  }
+
+  free(compete);
 }
 
 
@@ -97,7 +261,7 @@ void mutate() {
 }
 
 void clone(node **population, node *model, int toIndex) {
-  memcpy(population[toIndex], model, sizeof(node) * 64);
+  memcpy(population[toIndex], model, sizeof(node) * TREE_SIZE);
 }
 
 double logloss(double actual, double predicted) {
@@ -133,25 +297,25 @@ void selection(node **population, int population_count, const float **dataset, i
     }
   }
 
-  for(int i = 0; i < population_count; i++) {
-    if (results[i] > threshold) {
-      int reproduce = 0;
+  /*for(int i = 0; i < population_count; i++) {*/
+    /*if (results[i] > threshold) {*/
+      /*int reproduce = 0;*/
 
-      if (reproduce == 1) {
-        // TODO: Wrong mother and father are not within the elite
-        node *mother = population[elite[rand() % elite_count]];
-        node *father = population[elite[rand() % elite_count]];
-        /*crossover(father, mother, population, i);*/
-      }
-      else {
-        // Can be a children
-        // Or Replace in 20% of the case
-        population[i][0].operation = rand() % OPERATION_COUNT;
-        generate_tree(population[i], 1, 1, MAX_DEPTH, FEATURE_COUNT);
-        generate_tree(population[i], 2, 1, MAX_DEPTH, FEATURE_COUNT);
-      }
-    }
-  }
+      /*if (reproduce == 1) {*/
+        /*// TODO: Wrong mother and father are not within the elite*/
+        /*node *mother = population[elite[rand() % elite_count]];*/
+        /*node *father = population[elite[rand() % elite_count]];*/
+        /*[>crossover(father, mother, population, i);<]*/
+      /*}*/
+      /*else {*/
+        /*// Can be a children*/
+        /*// Or Replace in 20% of the case*/
+        /*population[i][0].operation = rand() % OPERATION_COUNT;*/
+        /*generate_tree(population[i], 1, 1, MAX_DEPTH, FEATURE_COUNT);*/
+        /*generate_tree(population[i], 2, 1, MAX_DEPTH, FEATURE_COUNT);*/
+      /*}*/
+    /*}*/
+  /*}*/
 }
 
 
@@ -196,7 +360,7 @@ void test(FILE *logFile) {
   int i = 0;
   int max_depth = 3;
   int generations = 1000; // 10k
-  int population_count = 100;
+  int population_count = 500;
 
   puts("Malloc pop for 10k generation (500 pop)");
 
@@ -209,7 +373,7 @@ void test(FILE *logFile) {
   timestamp_t t1 = get_timestamp();
   for(i = 0; i < population_count; i++) {
     population[i][0].operation = rand() % OPERATION_COUNT;
-    generate_tree(population[i], 1, 1, max_depth, FEATURE_COUNT);;
+    generate_tree(population[i], 1, 1, max_depth, FEATURE_COUNT);
     generate_tree(population[i], 2, 1, max_depth, FEATURE_COUNT);
   }
 
@@ -220,7 +384,9 @@ void test(FILE *logFile) {
   for(int y = 0; y < generations; y++) {
     t3 = get_timestamp();
     // TODO: Parrallelize
+    puts("Tournament");
     float *results = tournament(population, population_count, featuresPtr, DATASET_SIZE);
+    puts("Tournament Done");
 
     float *results_cpy = malloc(population_count * sizeof(float));
     memcpy(results_cpy, results, population_count * sizeof(float));
@@ -231,20 +397,22 @@ void test(FILE *logFile) {
     printf("Score: %f\n", naive_average(results, population_count));
     float threshold = percentile(results, population_count, 0.9); // 90%
     printf("Low Quartile is: %f\n", threshold);
-    /*printf("Best: %lf\n", results[0]);*/
+    /*printf("Best: %lf\n", results_cpy[0]);*/
     display_top(results, 10);
 
     t4 = get_timestamp();
     double t_secs = (t4 - t3) / 1000000.0L;
 
-    selection(population, population_count, featuresPtr, DATASET_SIZE, results_cpy, threshold);
-    // crossover(population, population_count, percentage);
+    /*selection(population, population_count, featuresPtr, DATASET_SIZE, results_cpy, threshold);*/
+    crossover(population, population_count, results_cpy, 0.9);
+    /*puts("After cross");*/
     // mutate();
     // Crossover
     // Mutate individuals
     // Mutate
     free(results);
     free(results_cpy);
+    printf("Generation : %d\n", y);
     printf("Tournament took: %.5f s\n", t_secs);
   }
 
