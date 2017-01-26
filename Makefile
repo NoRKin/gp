@@ -18,7 +18,7 @@ CFLAGS     = -O3
 
 # NVCCFLAGS  = -use_fast_math -O3 -std=c++11 -dc -arch=compute_61 -code=sm_61
 
-LFLAGS      = -lm
+LFLAGS      = -lm -lpthread
 
 $(EXE) : $(OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LFLAGS)

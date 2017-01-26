@@ -88,6 +88,31 @@ void  display_tree(node *memspace, int offset) {
   }
 }
 
+void mutate_tree(node **population, int from, int offset, int chances) {
+
+  int ret = rand() % 100;
+  if (ret > chances) {
+    if (population[from][offset].operation != -1) {
+      population[from][offset].operation = rand() % OPERATION_COUNT;
+    }
+    else {
+      population[from][offset].feature = rand() % 21; // FEATURE_COUNT
+    }
+    // Mutate
+    return ;
+  }
+
+  if (population[from][offset].operation != -1) {
+    int left_or_right = rand() % 2 + 1;
+
+    mutate_tree(population, from, offset + 2 + left_or_right, chances - 10);
+  }
+  else {
+    // Terminal .. mutate();
+    population[from][offset].feature = rand() % 50; // FEATURE_COUNT
+  }
+}
+
 
 void copy_branch(node **population, int from, int to, int offset_from, int offset_to) {
   // copy
@@ -108,7 +133,7 @@ void copy_branch(node **population, int from, int to, int offset_from, int offse
     }
     else {
       // TOO LONG, we replace it with a terminal node (we assume mutation at the same time)
-      population[to][offset_to].feature = rand() % 21; // FEATURE_COUNT
+      population[to][offset_to].feature = rand() % 50; // FEATURE_COUNT
       population[to][offset_to].operation = -1;
     }
 
