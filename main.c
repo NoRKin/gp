@@ -12,11 +12,8 @@
 #include "thread.h"
 #include "utils.h"
 
-
-
+// TODO STRUCT PRE-ALLOCATION
 // TODO JS INTERPRETER
-// TODO PARRALLELIZATION
-
 
 #define DEBUG 0
 #define MAX_DEPTH 4
@@ -24,7 +21,7 @@
 #define FEATURE_COUNT 50
 #define TREE_SIZE 256
 #define POPULATION_SIZE 50000
-#define NUMTHREADS 4
+#define NUMTHREADS 2
 
 static timestamp_t get_timestamp() {
   struct timeval now;
@@ -102,10 +99,7 @@ double logloss(double actual, double predicted) {
   /*printf("Actual is %lf, predicted is %lf\n", actual, predicted);*/
   double eps = 1e-15;
 
-  predicted = fabs(atan(predicted));
-  if (predicted > 1)
-    predicted = 1;
-
+  /*predicted = fabs(atan(predicted));*/
   if (predicted < eps)
     predicted = eps;
 
@@ -153,10 +147,10 @@ void selection(node **population, int population_count, const float **dataset, i
 }
 
 
-float *tournament(node **population, int population_count, const float **dataset, int dataset_size, int start, int end) {
+void tournament(node **population, int population_count, const float **dataset, int dataset_size, int start, int end, float *results) {
   // TODO: finish - start
   /*printf("t %d %d\n", start, end);*/
-  float *results = malloc(sizeof(float) * population_count);
+  /*float *results = malloc(sizeof(float) * population_count);*/
 
   long double heuristic = 0;
 
@@ -174,18 +168,17 @@ float *tournament(node **population, int population_count, const float **dataset
     heuristic = 0;
   }
 
-  return results;
+  return ;
 }
 
 void *thread_wrapper(void *data) {
   gpthread* gp = (gpthread *) data;
 
-  gp->results = tournament(gp->population, gp->population_count, gp->features, DATASET_SIZE, gp->start, gp->end);
+  tournament(gp->population, gp->population_count, gp->features, DATASET_SIZE, gp->start, gp->end, gp->results);
 }
 
-float *concat(gpthread **gp) {
+float *concat(gpthread **gp, float * results) {
   float result = 0;
-  float *results = malloc(sizeof(float) * POPULATION_SIZE);
 
   for (int i = 0; i < POPULATION_SIZE; i++) {
     result = 0;
@@ -232,6 +225,7 @@ void run(FILE *logFile) {
     gp[i] = malloc(sizeof(gpthread));
     gp[i]->features = featuresPtr;
     gp[i]->population_count = POPULATION_SIZE;
+    gp[i]->results = malloc(POPULATION_SIZE * sizeof(float));
     gp[i]->population = population;
     gp[i]->start = i * (DATASET_SIZE / NUMTHREADS);
     gp[i]->end   = gp[i]->start + (DATASET_SIZE / NUMTHREADS);
@@ -243,6 +237,7 @@ void run(FILE *logFile) {
     printf("Thread %d prepared:start from %d, end at %d\n", i, gp[i]->start, gp[i]->end);
   }
 
+  float *results = malloc(population_count * sizeof(float));
   float *results_cpy = malloc(population_count * sizeof(float));
   puts("Generating pop done for 5M individuals");
 
@@ -262,7 +257,7 @@ void run(FILE *logFile) {
     }
 
     // Concat
-    float *results = concat(gp);
+    concat(gp, results);
 
     memcpy(results_cpy, results, population_count * sizeof(float));
 
@@ -287,13 +282,14 @@ void run(FILE *logFile) {
       printf("Tournament took: %.5f s\n", t_secs);
     /*}*/
 
-    free(results);
-    /*for (i = 0; i < NUMTHREADS; i++) {*/
-      /*free(gp[i]->results);*/
-    /*}*/
-    display_count++;
+        display_count++;
   }
 
+  for (i = 0; i < NUMTHREADS; i++) {
+    free(gp[i]->results);
+  }
+
+  free(results);
   free(results_cpy);
 
   timestamp_t t2 = get_timestamp();
