@@ -4,16 +4,13 @@
 #include <time.h>
 #include <math.h>
 #include <string.h>
-#include <stdbool.h>
-
 #include "node.h"
 #include "generator.h"
 #include "evaluator.h"
 #include "feature_parser.h"
 #include <pthread.h>
 #include "thread.h"
-
-typedef unsigned long long timestamp_t;
+#include "utils.h"
 
 
 
@@ -23,119 +20,17 @@ typedef unsigned long long timestamp_t;
 
 #define DEBUG 0
 #define MAX_DEPTH 4
-#define DATASET_SIZE 100000
+#define DATASET_SIZE 100
 #define FEATURE_COUNT 50
 #define TREE_SIZE 256
-#define POPULATION_SIZE 2500
-#define NUMTHREADS 8
+#define POPULATION_SIZE 50000
+#define NUMTHREADS 4
 
-static timestamp_t get_timestamp () {
+static timestamp_t get_timestamp() {
   struct timeval now;
   gettimeofday (&now, NULL);
 
   return now.tv_usec + (timestamp_t)now.tv_sec * 1000000;
-}
-
-void quicksort(float *A, int len)
-{
-  if (len < 2) return;
-
-  float pivot = A[len / 2];
-
-  int i, j;
-  for (i = 0, j = len - 1; ; i++, j--)
-  {
-    while (A[i] < pivot) i++;
-    while (A[j] > pivot) j--;
-
-    if (i >= j) break;
-
-    float temp = A[i];
-    A[i]     = A[j];
-    A[j]     = temp;
-  }
-
-  quicksort(A, i);
-  quicksort(A + i, len - i);
-}
-
-float naive_average(float *a, int n) {
-  float sum = 0;
-
-  for( int i = 0; i < n; i++ )
-    sum += a[i];
-
-  return sum / n;
-}
-
-float max(float a, float b) {
-  if (a > b)
-    return a;
-  else
-    return b;
-}
-
-float min(float a, float b) {
-  if (a < b)
-    return a;
-  else
-    return b;
-}
-
-int maxIndex(float *results, int a, int b) {
-  if (results[a] > results[b])
-    return a;
-  else
-    return b;
-}
-
-int minIndex(float *results, int a, int b) {
-  if (results[a] < results[b])
-    return a;
-  else
-    return b;
-}
-
-/*float select(float a, int aIndex, float b, int bIndex) {*/
-  /*// Return best*/
-
-/*}*/
-
-
-// Get two index and population, return the best
-
-
-/*void crossover(node *father, node *mother, node **population, int childIndex) {*/
-  // population[childIndex] will become a mix between father, mother
-  // traverse father
-  // insert random mother node
-/*}*/
-
-bool contains(int *array, int number) {
-  int i = 0;
-  for (i = 0; i < 4; i++) {
-    if (array[i] == number)
-      return true;
-  }
-
-  return false;
-}
-
-
-void uniq_rand(int *numbers, int max, int min) {
-  int i = 0;
-  int value = 0;
-  /*printf("UNIQU RAND Val is %d\n", value);*/
-  for (i = 0; i < 4; i++) {
-    while (contains(numbers, value)) {
-      value = (rand() % max) + min;
-    }
-
-    /*if (value > max)*/
-      /*value = max;*/
-    /*printf("UNIQU RAND Val is %d, %d\n", i, value);*/
-    numbers[i] = value;
-  }
 }
 
 void crossover(node **population, int population_count, float *results, float percentage) {
@@ -286,40 +181,25 @@ void *thread_wrapper(void *data) {
   gpthread* gp = (gpthread *) data;
 
   gp->results = tournament(gp->population, gp->population_count, gp->features, DATASET_SIZE, gp->start, gp->end);
-  /*gp->results = tournament(gp->population, gp->population_count, gp->features, DATASET_SIZE, 0, DATASET_SIZE);*/
-}
-
-void display_top(float *results, int n) {
-  for (int i = 0; i < n; i++) {
-    printf("Position: %d\t Score: %f\n", i, results[i]);
-  }
-}
-
-float percentile(float *results, int length, float top) {
-  int portionIndex = floor(length * top);
-
-  return results[portionIndex];
 }
 
 float *concat(gpthread **gp) {
-  float *results = malloc(sizeof(float) *DATASET_SIZE);
+  float result = 0;
+  float *results = malloc(sizeof(float) * POPULATION_SIZE);
 
-  int x = 0;
-  for (int i = 0; i < NUMTHREADS; i++) {
-    for (int j = 0; x < gp[i]->end; j++) {
-      results[x] = gp[i]->results[j];
-      x++;
+  for (int i = 0; i < POPULATION_SIZE; i++) {
+    result = 0;
+    for (int j = 0; j < NUMTHREADS; j++) {
+      result += gp[j]->results[i];
     }
-  }
 
-  /*printf("%d copied !\n", x);*/
+    results[i] = result / NUMTHREADS;
+  }
 
   return results;
 }
 
-
-void test(FILE *logFile) {
-
+void run(FILE *logFile) {
   gpthread **gp = malloc(sizeof(gpthread *) * 4);
 
   FILE *datasetFile = fopen("./data/numerai_training_data.csv", "r");
@@ -363,33 +243,20 @@ void test(FILE *logFile) {
     printf("Thread %d prepared:start from %d, end at %d\n", i, gp[i]->start, gp[i]->end);
   }
 
+  float *results_cpy = malloc(population_count * sizeof(float));
   puts("Generating pop done for 5M individuals");
-  float threshold;
 
   timestamp_t t3, t4;
   pthread_t thread[NUMTHREADS];
   for(int y = 0; y < generations; y++) {
     t3 = get_timestamp();
-    // TODO: Parrallelize
-    //
-    //
-    //
-    /*pthread_t tid[NUMTHREADS];*/
-    /*while(i < 4) {*/
-    /// err =
-    //pthread_create(&thread[i], NULL, thread_wrapper, gp[i]);
-      /*if (err != 0)*/
-        /*printf("\ncan't create thread :[%s]", strerror(err));*/
-      /*else*/
-        /*printf("\n Thread created successfully\n");*/
 
-      /*i++;*/
-    /*}*/
-
+    // Start threads
     for (i = 0; i < NUMTHREADS; i++) {
       pthread_create(&thread[i], NULL, thread_wrapper, gp[i]);
     }
 
+    // Wait threads to finish
     for (i = 0; i < NUMTHREADS; i++) {
       pthread_join(thread[i], NULL);
     }
@@ -397,25 +264,13 @@ void test(FILE *logFile) {
     // Concat
     float *results = concat(gp);
 
-    //
-    //
-    //
-    /*float *results = tournament(population, population_count, featuresPtr, DATASET_SIZE);*/
-    /*thread_wrapper(gp[0]);*/
-    /*float *results = gp[0]->results;*/
-
-    /*puts("Tournament Done");*/
-
-    float *results_cpy = malloc(population_count * sizeof(float));
     memcpy(results_cpy, results, population_count * sizeof(float));
-    /*display_tree(population[0], 0);*/
-    /*printf("\n");*/
+
     int index = 0;
     quicksort(results, population_count);
     /*float threshold = percentile(results, population_count, 0.9); // 90%*/
     /*printf("Low Quartile is: %f\n", threshold);*/
     /*printf("Best: %lf\n", results_cpy[0]);*/
-
 
     t4 = get_timestamp();
     double t_secs = (t4 - t3) / 1000000.0L;
@@ -423,11 +278,7 @@ void test(FILE *logFile) {
     /*selection(population, population_count, featuresPtr, DATASET_SIZE, results_cpy, threshold);*/
     crossover(population, population_count, results_cpy, 0.9);
     mutate(population, population_count, results_cpy, 0.1);
-    /*puts("After cross");*/
-    // mutate();
-    // Crossover
-    // Mutate individuals
-    // Mutate
+
     /*if (display_count > 1) {*/
       printf("Score: %f\n", naive_average(results, population_count));
       display_top(results, 10);
@@ -437,12 +288,13 @@ void test(FILE *logFile) {
     /*}*/
 
     free(results);
-    free(results_cpy);
-    for (i = 0; i < NUMTHREADS; i++) {
-      free(gp[i]->results);
-    }
+    /*for (i = 0; i < NUMTHREADS; i++) {*/
+      /*free(gp[i]->results);*/
+    /*}*/
     display_count++;
   }
+
+  free(results_cpy);
 
   timestamp_t t2 = get_timestamp();
   double secs = (t2 - t1) / 1000000.0L;
@@ -456,7 +308,7 @@ int main(int argc, char **argv) {
 
   FILE *logFile = fopen("./debug.json", "w");
 
-  test(logFile);
+  run(logFile);
   fclose(logFile);
   return 0;
 }

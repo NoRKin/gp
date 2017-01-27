@@ -8,6 +8,7 @@ SOURCES  = $(SOURCEDIR)/evaluator.c \
            $(SOURCEDIR)/generator.c \
            $(SOURCEDIR)/operation.c \
            $(SOURCEDIR)/feature_parser.c \
+           $(SOURCEDIR)/utils.c \
            $(SOURCEDIR)/main.c
 
 IDIR      = -I.
