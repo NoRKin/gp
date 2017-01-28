@@ -1,12 +1,12 @@
-CC = gcc
+CC = nvcc
 
 SOURCEDIR = .
 
 EXE   = gp
 
 SOURCES  = $(SOURCEDIR)/evaluator.c \
+	   $(SOURCEDIR)/operation.c \
            $(SOURCEDIR)/generator.c \
-           $(SOURCEDIR)/operation.c \
            $(SOURCEDIR)/feature_parser.c \
            $(SOURCEDIR)/utils.c \
            $(SOURCEDIR)/main.c
@@ -17,9 +17,9 @@ OBJS        = $(SOURCES:.cu=.o)
 
 CFLAGS     = -O3
 
-# NVCCFLAGS  = -use_fast_math -O3 -std=c++11 -dc -arch=compute_61 -code=sm_61
+NVCCFLAGS  = -use_fast_math -O3 -dc -arch=compute_61 -code=sm_61
 
-LFLAGS      = -lm -lpthread
+LFLAGS      = -lm -lpthread -arch=compute_61 -code=sm_61
 
 $(EXE) : $(OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LFLAGS)

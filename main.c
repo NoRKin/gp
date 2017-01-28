@@ -12,7 +12,12 @@
 #include "thread.h"
 #include "utils.h"
 
-// TODO Make transform pop to rpn before testing
+// TODO RECALC ONLY MODIFIED TREES
+// TODO CUDA
+//        -- Cudify operations
+//        -- cudaMalloc features
+//        -- cudaMalloc pop
+//
 // TODO JS INTERPRETER
 
 #define DEBUG 0
@@ -179,7 +184,6 @@ void run(FILE *logFile) {
     population[i] = malloc(sizeof(node) * TREE_SIZE);
   }
 
-
   puts("Generating pop for 10k generation (500 pop)");
   timestamp_t t1 = get_timestamp();
   for(i = 0; i < population_count; i++) {
@@ -187,7 +191,6 @@ void run(FILE *logFile) {
     generate_tree(population[i], 1, 1, max_depth, FEATURE_COUNT);
     generate_tree(population[i], 2, 1, max_depth, FEATURE_COUNT);
   }
-
 
   // Copy population to rpn representation
   node **rpn_population = malloc(sizeof(node *) * population_count);

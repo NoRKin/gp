@@ -1,7 +1,7 @@
 #include "operation.h"
 
 
-inline float operation_run(int operation, float a, float b) {
+float operation_run(int operation, float a, float b) {
   if (operation == 0) {
     return a + b;
   }
@@ -18,7 +18,7 @@ inline float operation_run(int operation, float a, float b) {
     return sqrt(a);
   }
   if (operation == 5) {
-    return fdim(a, b);
+    return tan(a);
   }
   if (operation == 6) {
     return log(a);
