@@ -14,6 +14,19 @@ float evaluate_tree(node *memspace, int offset, const float *features) {
   }
 }
 
+float fast_evaluate_tree(node *memspace, int offset, const float *features) {
+
+  if (memspace[offset].operation == -1) {
+    return features[memspace[offset].feature];
+  }
+  else {
+    float left = evaluate_tree(memspace, offset * 2 + 1, features);
+    float right = evaluate_tree(memspace, offset * 2 + 2, features);
+
+    return operation_run(memspace[offset].operation, left, right);
+  }
+}
+
 int tree_depth(node *memspace, int offset, int depth) {
   if (memspace[offset].operation != -1) {
     int left = tree_depth(memspace, offset * 2 + 1, depth + 1);
@@ -127,7 +140,7 @@ void copy_branch(node **population, int from, int to, int offset_from, int offse
   /*puts("Copy done");*/
 
   if (population[from][offset_from].operation != -1) {
-    if (offset_to * 2 + 2 < 64) {
+    if (offset_to * 2 + 2 < 128) {
       copy_branch(population, from, to, offset_from * 2 + 1, offset_to * 2 + 1);
       copy_branch(population, from, to, offset_from * 2 + 2, offset_to * 2 + 2);
     }
@@ -143,4 +156,54 @@ void copy_branch(node **population, int from, int to, int offset_from, int offse
     // Term node
     return ;
   }
+}
+
+void tree_to_rpn(node *memspace, int offset, node *to, int *to_offset) {
+  if (memspace[offset].operation != -1) {
+    // Left
+    /*printf("(");*/
+    tree_to_rpn(memspace, offset * 2 + 1, to, to_offset);
+
+    /*printf("%c", operation_label(memspace[offset].operation));*/
+    // Right
+    tree_to_rpn(memspace, offset * 2 + 2, to, to_offset);
+    /*printf(")");*/
+    // stack_push
+    to[*to_offset].operation = memspace[offset].operation;
+    (*to_offset)++;
+    /*printf("(_%f)", features[memspace[offset].feature);*/
+    /*return operation_run(memspace[offset].operation, left, right);*/
+  }
+  else {
+    // Term node
+    to[*to_offset].feature = memspace[offset].feature;
+    to[*to_offset].operation = -1;
+    (*to_offset)++;
+  }
+}
+
+
+float eval_rpn(node *rpn, const float *features) {
+  float stack[16];
+  int s_index = 0;
+  int i = 0;
+
+  while(rpn[i].operation != -2) {
+    if (rpn[i].operation == -1) {
+      stack[s_index] = features[rpn[i].feature];
+      s_index++;
+    }
+    // Function, we want to reduce the stack
+    else if (s_index > 1) {
+      s_index = s_index - 1;
+      stack[s_index - 1] = operation_run(rpn[i].operation, stack[s_index - 1], stack[s_index]);
+    }
+    // Stack is not full enough
+    /*else {*/
+    /*printf("Error the stack is not full enough %d\n", s_index);*/
+    /*}*/
+    i++;
+  }
+
+  return stack[0];
 }

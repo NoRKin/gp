@@ -1,7 +1,7 @@
 #include "operation.h"
 
 
-float operation_run(int operation, float a, float b) {
+inline float operation_run(int operation, float a, float b) {
   if (operation == 0) {
     return a + b;
   }
@@ -41,7 +41,7 @@ char operation_label(int operation) {
     return '+';
   }
   if (operation == 1) {
-    return '.';
+    return '*';
   }
   if (operation == 2) {
     return '/';

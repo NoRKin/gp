@@ -42,6 +42,19 @@ void display_top(float *results, int n) {
   }
 }
 
+void display_rpn(node *rpn, int length) {
+  for (int i = 0; i < length; i++) {
+    if (rpn[i].operation != -1) {
+      printf(" %c", operation_label(rpn[i].operation));
+    }
+    else {
+      printf(" %d", rpn[i].feature);
+    }
+  }
+  printf("\n");
+  fflush(stdout);
+}
+
 float naive_average(float *a, int n) {
   float sum = 0;
 

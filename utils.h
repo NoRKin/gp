@@ -5,6 +5,9 @@
 #include <math.h>
 #include <stdbool.h>
 
+#include "node.h"
+#include "operation.h"
+
 #ifndef UTILS_H_
 #define UTILS_H_
 
@@ -13,6 +16,7 @@ typedef unsigned long long timestamp_t;
 //static  timestamp_t get_timestamp();
 void    quicksort(float *A, int len);
 void    display_top(float *results, int n);
+void    display_rpn(node *rpn, int length);
 
 float   naive_average(float *a, int n);
 float   percentile(float *results, int length, float top);
