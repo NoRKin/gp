@@ -16,7 +16,8 @@ typedef unsigned long long timestamp_t;
 //static  timestamp_t get_timestamp();
 void    quicksort(float *A, int len);
 void    display_top(float *results, int n);
-void    display_rpn(node *rpn, int length);
+void    display_rpn(node *rpn);
+void    display_feature_line(const float *line, int feature_count);
 
 float   naive_average(float *a, int n);
 float   percentile(float *results, int length, float top);

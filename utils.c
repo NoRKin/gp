@@ -42,17 +42,28 @@ void display_top(float *results, int n) {
   }
 }
 
-void display_rpn(node *rpn, int length) {
-  for (int i = 0; i < length; i++) {
+void display_rpn(node *rpn) {
+  int i = 0;
+
+  while (rpn[i].operation != -2) {
     if (rpn[i].operation != -1) {
       printf(" %c", operation_label(rpn[i].operation));
     }
     else {
       printf(" %d", rpn[i].feature);
     }
+    i++;
   }
   printf("\n");
-  fflush(stdout);
+}
+
+void display_feature_line(const float *line, int feature_count) {
+  int i = 0;
+
+  for (i = 0; i < feature_count; i++) {
+    printf(" %f,", line[i]);
+  }
+  printf("\n");
 }
 
 float naive_average(float *a, int n) {

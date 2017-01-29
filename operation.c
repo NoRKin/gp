@@ -18,10 +18,10 @@ float operation_run(int operation, float a, float b) {
     return sqrt(a);
   }
   if (operation == 5) {
-    return tan(a);
+    return tanf(a);
   }
   if (operation == 6) {
-    return log(a);
+    return logf(a);
   }
   if (operation == 7) {
     return exp(a);

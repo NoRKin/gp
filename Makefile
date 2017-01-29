@@ -6,9 +6,11 @@ EXE   = gp
 
 SOURCES  = $(SOURCEDIR)/evaluator.c \
 	   $(SOURCEDIR)/operation.c \
+	   $(SOURCEDIR)/operation.c \
            $(SOURCEDIR)/generator.c \
            $(SOURCEDIR)/feature_parser.c \
            $(SOURCEDIR)/utils.c \
+           $(SOURCEDIR)/kernel.cu \
            $(SOURCEDIR)/main.c
 
 IDIR      = -I.
@@ -17,7 +19,7 @@ OBJS        = $(SOURCES:.cu=.o)
 
 CFLAGS     = -O3
 
-NVCCFLAGS  = -use_fast_math -O3 -dc -arch=compute_61 -code=sm_61
+NVCCFLAGS  = -O3 -dc -arch=compute_61 -code=sm_61 -use_fast_math
 
 LFLAGS      = -lm -lpthread -arch=compute_61 -code=sm_61
 

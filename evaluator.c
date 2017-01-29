@@ -182,7 +182,6 @@ void tree_to_rpn(node *memspace, int offset, node *to, int *to_offset) {
   }
 }
 
-
 float eval_rpn(node *rpn, const float *features) {
   float stack[16];
   int s_index = 0;

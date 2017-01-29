@@ -1,4 +1,4 @@
-/*#include "kernel.cuh"*/
+#include "kernel.cuh"
 
 __device__ float operation_run_cuda(int operation, float a, float b) {
   if (operation == 0) {
@@ -35,6 +35,42 @@ __device__ float operation_run_cuda(int operation, float a, float b) {
   return 0;
 }
 
+__device__ char operation_label_cuda(int operation) {
+  if (operation == 0) {
+    return '+';
+  }
+  if (operation == 1) {
+    return '*';
+  }
+  if (operation == 2) {
+    return '/';
+  }
+  if (operation == 3) {
+    return '-';
+  }
+  if (operation == 4) {
+    return 's';
+  }
+  if (operation == 5) {
+    return 'f';
+  }
+  if (operation == 6) {
+    return 'l';
+  }
+  if (operation == 7) {
+    return 'e';
+  }
+  if (operation == 8) {
+    return 'c';
+  }
+  if (operation == 9) {
+    return 's';
+  }
+
+  return '!';
+}
+
+
 __device__ double logloss_cuda(double actual, double predicted) {
   double eps = 1e-15;
 
@@ -70,50 +106,162 @@ __device__ float eval_rpn_cuda(node *rpn, float *features) {
   return stack[0];
 }
 
+__device__ void display_rpn_cuda(node *rpn) {
+  int i = 0;
+
+  while (rpn[i].operation != -2) {
+    if (rpn[i].operation != -1) {
+      printf(" %c", operation_label_cuda(rpn[i].operation));
+    }
+    else {
+      printf(" %d", rpn[i].feature);
+    }
+    i++;
+  }
+  printf("\n");
+}
+
+__device__ void display_feature_line_cuda(float *line, int feature_count) {
+  int i = 0;
+
+  for (i = 0; i < feature_count; i++) {
+    printf(" %f,", line[i]);
+  }
+  printf("\n");
+}
+
+
 /*
  * Return average logloss for a candidate
  */
-__device__ float tournament(node *rpn, float *dataset, int dataset_size) {
-  float heuristic;
+__device__ float tournament_cuda(node *rpn, float *dataset, int dataset_size) {
 
-  heuristic = cuda_logloss(dataset[0][FEATURE_COUNT], eval_rpn_cuda(rpn, dataset[0]));
+  // Very first element
+  /*float heuristic = logloss_cuda(dataset[0 + FEATURE_COUNT], eval_rpn_cuda(rpn, dataset));*/
+  /*if (isnan(heuristic))*/
+      /*heuristic = 10;*/
+
+  float result = 0.0;
+  double heuristic = 0.0;
+
   for(int i = 0; i < dataset_size; ++i) {
-      heuristic += cuda_logloss(dataset[i][FEATURE_COUNT], eval_rpn_cuda(rpn, dataset[i]));
-      heuristic /= 2;
+    result = logloss_cuda(dataset[i * FEATURE_COUNT + FEATURE_COUNT],  // Access last element of line
+                          eval_rpn_cuda(rpn, dataset + (i * FEATURE_COUNT))); // Set pointer to first element of line
 
-    if (isnan(results[i])) {
+    /*result = eval_rpn_cuda(rpn, dataset + (i * FEATURE_COUNT)); // Set pointer to first element of line*/
+    /*if (i < 2) {*/
+    /*printf("CUDA Result for %d is %f : %f\n", i, result, heuristic);*/
+      /*display_rpn_cuda(rpn);*/
+      /*display_feature_line_cuda(dataset + (i * FEATURE_COUNT), 50);*/
+      /*printf("\n\n\n");*/
+    /*}*/
+
+    /*printf("Result is %f\n", result);*/
+    // TODO Clamp
+    if (isnan(result) || isinf(result) || result < 0)
       heuristic += 10;
-      heuristic /= 2;
-    }
+    else
+      heuristic += result;
+
+    /*if (i > 0)*/
+      /*heuristic /= 2;*/
     // sync threads
-    __syncthreads();
+    /*__syncthreads();*/
   }
 
-  return heuristic;
+  return heuristic / dataset_size;
 }
 
-__global__ void run_cuda(node **population, float **features, int features_count, float *results) {
-  int idx;
+__global__ void run_cuda(node *population, float *features, int features_count, float *results) {
+  int idx = threadIdx.x + blockIdx.x * blockDim.x;
 
-  results[idx] = tournament(population[idx], features, features_count);
+  /*display_rpn_cuda(population + (idx * sizeof(node) * 256 - 1));*/
+  /*if (idx == 0) {*/
+    /*printf("CUDA TOURNAMENT idx 0: %d\n", idx);*/
+    /*display_rpn_cuda(population + (idx * sizeof(node)));*/
+  /*}*/
 
-  // Copy back to cpu
+  /*if (idx == 1) {*/
+    /*printf("CUDA TOURNAMENT idx 1: %d\n", idx);*/
+    /*display_rpn_cuda(population + (idx * 256));*/
+  /*}*/
 
+  results[idx] = tournament_cuda(population + (idx * 256), features, DATASET_SIZE);
+
+  /*printf("CUDA TOURNAMENT 2 idx: %d - logloss %f\n", idx, tournament_cuda(population + (idx * 256), features, 100000));*/
 }
 
-float *prepare_and_run_cuda(node **population, float **features, int features_count, float *results, int pop_size) {
+extern "C"
+void prepare_and_run_cuda(node *population, const float **features, int features_count, float *d_results, int pop_size, float *results_cuda) {
   // cudaMalloc pop
   // cuda memcpy pop
+
+  // Copy population
+  node *d_population;
+  cudaMalloc(&d_population, (pop_size * 256) * sizeof(node));
+  cudaMemcpy(d_population, population, pop_size * 256 * sizeof(node), cudaMemcpyHostToDevice);
 
   // features should be already malloc and copied
 
   // Results should also be already malloc and copied
   // cudaMalloc results
+  int idx = 0;
+  int x = 0;
+  int rows = DATASET_SIZE;
+  int cols = 50;
+
+  float *d_features;
+  float *features_flatten = (float *)malloc(sizeof(float) * rows * cols);
+
+  // flatten
+  for (int i = 0; i < rows; i++) {
+    for (x = 0; x < cols; x++) {
+      features_flatten[idx] = features[i][x];
+      idx++;
+    }
+  }
+
+  cudaMalloc((void**)&d_features, (rows * cols) * sizeof(float));
+  cudaMemcpy(d_features, features_flatten, rows * cols * sizeof(float), cudaMemcpyHostToDevice);
 
 
-  /*run_cuda<<BLOCKS, THREADS>>();*/
+  printf("CUDA RUN\n");
+  cudaDeviceSynchronize();
+  run_cuda<<<BLOCKS, THREADS>>>(d_population, d_features, FEATURE_COUNT, d_results);
 
-  // cudaFree pop
 
-  // return results;
+
+
+  cudaMemcpy(results_cuda, d_results, sizeof(float) * pop_size, cudaMemcpyDeviceToHost);
+  cudaDeviceSynchronize();
+
+  cudaError_t err = cudaGetLastError();
+  if (err != cudaSuccess)
+    printf("CUDA Error: %s\n", cudaGetErrorString(err));
+
+
+
+
+  /*cudaMemcpy(c, d_c, size, cudaMemcpyDeviceToHost);*/
+  cudaFree(d_population);
 }
+
+/*__host__ void copy_features_cuda(const float **features, int rows, int cols, float *d_features) {*/
+  /*int idx = 0;*/
+  /*int x = 0;*/
+
+  /*float *features_flatten = (float *)malloc(sizeof(float) * rows * cols);*/
+
+  /*// flatten*/
+  /*for (int i = 0; i < rows; i++) {*/
+    /*for (x = 0; x < cols; x++) {*/
+      /*features_flatten[idx] = features[i][x];*/
+      /*idx++;*/
+    /*}*/
+  /*}*/
+
+  /*cudaMalloc((void**)&d_features, (rows * cols) * sizeof(float));*/
+  /*cudaMemcpy(d_features, features_flatten, rows * cols * sizeof(float), cudaMemcpyHostToDevice);*/
+
+  /*free(features_flatten);*/
+/*}*/

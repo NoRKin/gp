@@ -12,11 +12,15 @@
 #include "thread.h"
 #include "utils.h"
 
+#include "kernel.cuh"
+
 // TODO RECALC ONLY MODIFIED TREES
 // TODO CUDA
-//        -- Cudify operations
-//        -- cudaMalloc features
-//        -- cudaMalloc pop
+//          - Copy results back to device
+//          - Check if results match cpu results
+//
+//
+//
 //
 // TODO JS INTERPRETER
 
@@ -25,7 +29,7 @@
 #define DATASET_SIZE 100000
 #define FEATURE_COUNT 50
 #define TREE_SIZE 256
-#define POPULATION_SIZE 1000
+#define POPULATION_SIZE 8192
 #define NUMTHREADS 8
 
 static timestamp_t get_timestamp() {
@@ -35,10 +39,47 @@ static timestamp_t get_timestamp() {
   return now.tv_usec + (timestamp_t)now.tv_sec * 1000000;
 }
 
+void copy_features_cuda(const float **features, int rows, int cols, float *d_features) {
+  int idx = 0;
+  int x = 0;
+
+  float *features_flatten = (float *)malloc(sizeof(float) * rows * cols);
+
+  // flatten
+  for (int i = 0; i < rows; i++) {
+    for (x = 0; x < cols; x++) {
+      features_flatten[idx] = features[i][x];
+      idx++;
+    }
+  }
+
+  cudaMalloc((void**)&d_features, (rows * cols) * sizeof(float));
+  cudaMemcpy(d_features, features_flatten, rows * cols * sizeof(float), cudaMemcpyHostToDevice);
+
+  free(features_flatten);
+}
+
+
+node *pop_to_1d(node **rpn_population, int population_count) {
+  int idx = 0;
+  int x = 0;
+
+  node *rpn_population_1d = (node *)malloc(sizeof(node) * population_count * TREE_SIZE);
+
+  for (int i = 0; i < population_count; i++) {
+    for (x = 0; x < TREE_SIZE; x++) {
+      rpn_population_1d[idx] = rpn_population[i][x];
+      idx++;
+    }
+  }
+
+  return rpn_population_1d;
+}
+
 void pop_to_rpn(node **population, int population_count, node** rpn_population) {
   int pos;
   for(int i = 0; i < population_count; i++) {
-    rpn_population[i] = malloc(sizeof(node) * TREE_SIZE);
+    rpn_population[i] = (node *)malloc(sizeof(node) * TREE_SIZE);
     pos = 0;
     tree_to_rpn(population[i], 0, rpn_population[i], &pos);
     rpn_population[i][pos].operation = -2;
@@ -52,7 +93,7 @@ void crossover(node **population, int population_count, float *results, float pe
 
   int winners[2];
   int losers[2];
-  int *compete = malloc(sizeof(int) * 4);
+  int *compete = (int *)malloc(sizeof(int) * 4);
 
   int offset = 0;
   int depth = 0;
@@ -119,27 +160,46 @@ double logloss(double actual, double predicted) {
   if (predicted == 1)
     predicted -= eps;
 
-  return - (actual * log(predicted) + (1 - actual) * log(1 - predicted));
+  return - (actual * logf(predicted) + (1 - actual) * logf(1 - predicted));
 }
 
 void tournament(node **population, int population_count, const float **dataset, int dataset_size, int start, int end, float *results) {
-  long double heuristic = 0;
+  float heuristic = 0;
+  float result = 0;
   int i = 0;
+  int j = 0;
   int x = 0;
 
   for(i = 0; i < population_count; i++) {
     for(x = start; x < end; x++) {
       /*heuristic += logloss(dataset[x][FEATURE_COUNT], evaluate_tree(population[i], 0, dataset[x]));*/
-      heuristic += logloss(dataset[x][FEATURE_COUNT], eval_rpn(population[i], dataset[x]));
-      /*printf("Heuristic is %f\n", evaluate_tree(population[i], 0, dataset[x]));*/
+      result = logloss(dataset[x][FEATURE_COUNT], eval_rpn(population[i], dataset[x]));
+      /*result = eval_rpn(population[i], dataset[x]);*/
+
+      /*if (j < 2) {*/
+        /*printf("Result for %d is %f : %f\n", j, result, heuristic);*/
+        /*display_rpn(population[i]);*/
+        /*display_feature_line(dataset[x], 50);*/
+        /*j++;*/
+      /*}*/
+
+      if (isnan(result) || isinf(result) || result < 0)
+        heuristic += 10;
+      else
+        heuristic += result;
+      /*printf("Heuristic is %f\n", heuristic);*/
+      /*heuristic = 0;*/
+      /*puts("Go");*/
     }
-    results[i] = heuristic / (dataset_size / NUMTHREADS);
-    if (isnan(results[i])) {
-      results[i] = 10;
-    }
+
+    results[i] = heuristic / ((end - start));
+    /*if (isnan(results[i])) {*/
+      /*results[i] = 10;*/
+    /*}*/
     heuristic = 0;
   }
 
+  /*puts("Return tournament");*/
   return ;
 }
 
@@ -165,11 +225,21 @@ float *concat(gpthread **gp, float * results) {
 }
 
 
-void run(FILE *logFile) {
-  gpthread **gp = malloc(sizeof(gpthread *) * 4);
+void run() {
+  gpthread **gp = malloc(sizeof(gpthread *) * NUMTHREADS);
 
   FILE *datasetFile = fopen("./data/numerai_training_data.csv", "r");
   float const **featuresPtr = (float const **)feature_fromFile(datasetFile, DATASET_SIZE, FEATURE_COUNT);
+  fclose(datasetFile);
+
+  puts("Copy features to device");
+
+  float *d_features;
+  copy_features_cuda(featuresPtr, DATASET_SIZE, FEATURE_COUNT, d_features);
+
+  float *d_results;
+  float *results_cuda = malloc(sizeof(float) * POPULATION_SIZE);
+  cudaMalloc((void **)&d_results, POPULATION_SIZE * sizeof(float));
 
   int i = 0;
   int max_depth = MAX_DEPTH;
@@ -195,12 +265,19 @@ void run(FILE *logFile) {
   // Copy population to rpn representation
   node **rpn_population = malloc(sizeof(node *) * population_count);
 
-  t1 = get_timestamp();
   pop_to_rpn(population, population_count, rpn_population);
+
+  node *rpn_1d;
+  /*node *rpn_1d = pop_to_1d(rpn_population, POPULATION_SIZE);*/
+
+  /*t1 = get_timestamp();*/
+  /*prepare_and_run_cuda(rpn_1d, featuresPtr, FEATURE_COUNT, d_results, POPULATION_SIZE, results_cuda);*/
   timestamp_t t2 = get_timestamp();
   double secs = (t2 - t1) / 1000000.0L;
-  printf("Pop to rpn took: %.5f s\n", secs);
+  /*printf("CUDA RPN TOOK: %.5f s\n", secs);*/
 
+  /*quicksort(results_cuda, population_count);*/
+  /*display_top(results_cuda, 10);*/
 
   for (i = 0; i < NUMTHREADS; i++) {
 
@@ -230,26 +307,34 @@ void run(FILE *logFile) {
   /*node *line = malloc(sizeof(node) * 256);*/
 
   for(int y = 0; y < generations; y++) {
+
+
+    // launch kernel
+    rpn_1d = pop_to_1d(rpn_population, POPULATION_SIZE);
+    prepare_and_run_cuda(rpn_1d, featuresPtr, FEATURE_COUNT, d_results, POPULATION_SIZE, results_cuda);
     t3 = get_timestamp();
+    memcpy(results_cpy, results_cuda, population_count * sizeof(float));
+    quicksort(results_cuda, population_count);
 
     // Start threads
-    for (i = 0; i < NUMTHREADS; i++) {
-      pthread_create(&thread[i], NULL, thread_wrapper, gp[i]);
-    }
+    /*for (i = 0; i < NUMTHREADS; i++) {*/
+      /*pthread_create(&thread[i], NULL, thread_wrapper, gp[i]);*/
+    /*}*/
 
-    // Wait threads to finish
-    for (i = 0; i < NUMTHREADS; i++) {
-      pthread_join(thread[i], NULL);
-    }
-    t4 = get_timestamp();
+    /*// Wait threads to finish*/
+    /*for (i = 0; i < NUMTHREADS; i++) {*/
+      /*pthread_join(thread[i], NULL);*/
+    /*}*/
 
-    t5 = get_timestamp();
-    // Concat
-    concat(gp, results);
+    /*t4 = get_timestamp();*/
 
-    memcpy(results_cpy, results, population_count * sizeof(float));
+    /*t5 = get_timestamp();*/
+    /*// Concat*/
+    /*concat(gp, results);*/
 
-    quicksort(results, population_count);
+    /*memcpy(results_cpy, results, population_count * sizeof(float));*/
+
+    /*quicksort(results, population_count);*/
     /*float threshold = percentile(results, population_count, 0.9); // 90%*/
     /*printf("Low Quartile is: %f\n", threshold);*/
     /*printf("Best: %lf\n", results_cpy[0]);*/
@@ -260,11 +345,14 @@ void run(FILE *logFile) {
     crossover(population, population_count, results_cpy, 0.4);
     mutate(population, population_count, results_cpy, 0.1);
     pop_to_rpn(population, population_count, rpn_population);
+    // to 1d
+    /*rpn_1d;*/
+    // launch kernel
 
     t6 = get_timestamp();
     /*if (display_count > 1) {*/
-    printf("Score: %f\n", naive_average(results, population_count));
-    display_top(results, 10);
+    /*printf("Score: %f\n", naive_average(results_cuda, population_count));*/
+    display_top(results_cuda, 10);
     /*pos = 0;*/
     /*tree_to_rpn(population[0], 0, line, &pos);*/
     /*line[pos].operation = -2;*/
@@ -299,22 +387,23 @@ void run(FILE *logFile) {
     /*free(gp[i]->results);*/
   /*}*/
 
-  free(results);
-  free(results_cpy);
+  /*free(results);*/
+  /*free(results_cpy);*/
 
   t2 = get_timestamp();
   secs = (t2 - t1) / 1000000.0L;
   printf("Backtest took: %.3f s\n", secs);
 
-  fclose(datasetFile);
+  return ;
+
 }
 
 int main(int argc, char **argv) {
   srand(time(NULL));
 
-  FILE *logFile = fopen("./debug.json", "w");
+  /*FILE *logFile = fopen("./debug.json", "w");*/
 
-  run(logFile);
-  fclose(logFile);
+  run();
+  /*fclose(logFile);*/
   return 0;
 }
