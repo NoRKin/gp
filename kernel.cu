@@ -192,7 +192,7 @@ __global__ void run_cuda(node *population, float *features, int features_count, 
 }
 
 extern "C"
-void prepare_and_run_cuda(node *population, const float **features, int features_count, float *d_results, int pop_size, float *results_cuda) {
+void prepare_and_run_cuda(node *population, float *d_features, int features_count, float *d_results, int pop_size, float *results_cuda) {
   // cudaMalloc pop
   // cuda memcpy pop
 
@@ -210,26 +210,24 @@ void prepare_and_run_cuda(node *population, const float **features, int features
   int rows = DATASET_SIZE;
   int cols = 50;
 
-  float *d_features;
-  float *features_flatten = (float *)malloc(sizeof(float) * rows * cols);
+  //float *d_features;
+  //float *features_flatten = (float *)malloc(sizeof(float) * rows * cols);
 
   // flatten
-  for (int i = 0; i < rows; i++) {
-    for (x = 0; x < cols; x++) {
-      features_flatten[idx] = features[i][x];
-      idx++;
-    }
-  }
+  //for (int i = 0; i < rows; i++) {
+  //  for (x = 0; x < cols; x++) {
+  //    features_flatten[idx] = features[i][x];
+  //    idx++;
+  //  }
+  //}
 
-  cudaMalloc((void**)&d_features, (rows * cols) * sizeof(float));
-  cudaMemcpy(d_features, features_flatten, rows * cols * sizeof(float), cudaMemcpyHostToDevice);
+  //cudaMalloc((void**)&d_features, (rows * cols) * sizeof(float));
+  //cudaMemcpy(d_features, features_flatten, rows * cols * sizeof(float), cudaMemcpyHostToDevice);
 
 
   printf("CUDA RUN\n");
   cudaDeviceSynchronize();
   run_cuda<<<BLOCKS, THREADS>>>(d_population, d_features, FEATURE_COUNT, d_results);
-
-
 
 
   cudaMemcpy(results_cuda, d_results, sizeof(float) * pop_size, cudaMemcpyDeviceToHost);
@@ -244,6 +242,7 @@ void prepare_and_run_cuda(node *population, const float **features, int features
 
   /*cudaMemcpy(c, d_c, size, cudaMemcpyDeviceToHost);*/
   cudaFree(d_population);
+  //cudaFree(d_features);
 }
 
 /*__host__ void copy_features_cuda(const float **features, int rows, int cols, float *d_features) {*/

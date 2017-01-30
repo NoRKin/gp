@@ -29,8 +29,8 @@
 #define DATASET_SIZE 100000
 #define FEATURE_COUNT 50
 #define TREE_SIZE 256
-#define POPULATION_SIZE 8192
-#define NUMTHREADS 8
+#define POPULATION_SIZE 512 
+#define NUMTHREADS 1
 
 static timestamp_t get_timestamp() {
   struct timeval now;
@@ -48,8 +48,7 @@ void copy_features_cuda(const float **features, int rows, int cols, float *d_fea
   // flatten
   for (int i = 0; i < rows; i++) {
     for (x = 0; x < cols; x++) {
-      features_flatten[idx] = features[i][x];
-      idx++;
+      features_flatten[idx] = features[i][x]; idx++;
     }
   }
 
@@ -234,8 +233,8 @@ void run() {
 
   puts("Copy features to device");
 
-  float *d_features;
-  copy_features_cuda(featuresPtr, DATASET_SIZE, FEATURE_COUNT, d_features);
+  //float *d_features;
+  //copy_features_cuda(featuresPtr, DATASET_SIZE, FEATURE_COUNT, d_features);
 
   float *d_results;
   float *results_cuda = malloc(sizeof(float) * POPULATION_SIZE);
@@ -274,7 +273,27 @@ void run() {
   /*prepare_and_run_cuda(rpn_1d, featuresPtr, FEATURE_COUNT, d_results, POPULATION_SIZE, results_cuda);*/
   timestamp_t t2 = get_timestamp();
   double secs = (t2 - t1) / 1000000.0L;
+  
+ 
   /*printf("CUDA RPN TOOK: %.5f s\n", secs);*/
+
+  int idx = 0;
+  int x = 0;
+  float *d_features;
+  float *features_flatten = (float *)malloc(sizeof(float) * DATASET_SIZE * FEATURE_COUNT);
+
+  // flatten
+  for (int i = 0; i < DATASET_SIZE; i++) {
+	  for (x = 0; x < FEATURE_COUNT; x++) {
+		  features_flatten[idx] = featuresPtr[i][x];
+		  idx++;
+	  }
+  }
+
+
+  cudaMalloc((void**)&d_features, (DATASET_SIZE * FEATURE_COUNT) * sizeof(float));
+  cudaMemcpy(d_features, features_flatten, DATASET_SIZE * FEATURE_COUNT * sizeof(float), cudaMemcpyHostToDevice);
+
 
   /*quicksort(results_cuda, population_count);*/
   /*display_top(results_cuda, 10);*/
@@ -311,8 +330,9 @@ void run() {
 
     // launch kernel
     rpn_1d = pop_to_1d(rpn_population, POPULATION_SIZE);
-    prepare_and_run_cuda(rpn_1d, featuresPtr, FEATURE_COUNT, d_results, POPULATION_SIZE, results_cuda);
     t3 = get_timestamp();
+    prepare_and_run_cuda(rpn_1d, d_features, FEATURE_COUNT, d_results, POPULATION_SIZE, results_cuda);
+    t4 = get_timestamp();
     memcpy(results_cpy, results_cuda, population_count * sizeof(float));
     quicksort(results_cuda, population_count);
 
@@ -342,6 +362,7 @@ void run() {
     double t_secs = (t4 - t3) / 1000000.0L;
 
     /*selection(population, population_count, featuresPtr, DATASET_SIZE, results_cpy, threshold);*/
+    t5 = get_timestamp();
     crossover(population, population_count, results_cpy, 0.4);
     mutate(population, population_count, results_cpy, 0.1);
     pop_to_rpn(population, population_count, rpn_population);
@@ -363,7 +384,7 @@ void run() {
     /*};*/
     /*printf("RPN RESULT IS %f\n",   logloss(featuresPtr[0][FEATURE_COUNT], eval_rpn(line, featuresPtr[0])));*/
     /*t6 = get_timestamp();*/
-    double t_secs2 = (t6 - t5);
+    double t_secs2 = (t6 - t5) / 1000000.0L;
     /*printf("RPN took: %.6f ms\n", t_secs2);*/
     /*fflush(stdout);*/
     /*t5 = get_timestamp();*/

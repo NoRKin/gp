@@ -6,16 +6,16 @@
 #ifndef KERNEL_H_
 #define KERNEL_H_
 
-#define THREADS 128
-#define BLOCKS 64
+#define THREADS 32 
+#define BLOCKS 16 
 #define FEATURE_COUNT 50
-#define DATASET_SIZE 100000
+#define DATASET_SIZE 40000
 
 #ifdef __cplusplus
   extern "C"
 #endif
 
-void prepare_and_run_cuda(node *population, const float **features, int features_count, float *results, int pop_size, float *results_cuda);
+void prepare_and_run_cuda(node *population, float *d_features, int features_count, float *results, int pop_size, float *results_cuda);
 
 __device__ float operation_run_cuda(int operation, float a, float b);
 __device__ char operation_label_cuda(int operation);
