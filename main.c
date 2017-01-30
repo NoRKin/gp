@@ -235,6 +235,15 @@ float *concat(gpthread **gp, float * results) {
   return results;
 }
 
+void pick_pop(node **population, int *indexes, node **picked) {
+  int i = 0;
+
+  while(indexes[i] != -1) {
+    memcpy(picked[i], population[indexes[i]], TREE_SIZE * sizeof(node));
+    i++;
+  }
+}
+
 void run() {
   if (THREADS * BLOCKS != POPULATION_SIZE) {
     printf("ERROR POPULATION_SIZE AND BLOCKS ARE DIFFERENT SIZE\n");
@@ -265,6 +274,7 @@ void run() {
   puts("Malloc pop for 10k generation (500 pop)");
 
   node **population = (node **)malloc(sizeof(node *) * population_count);
+  node **population_losers = (node **)malloc(sizeof(node *) * population_count);
   for(i = 0; i < population_count; i++) {
     population[i] = (node *)malloc(sizeof(node) * TREE_SIZE);
   }
@@ -335,6 +345,8 @@ void run() {
   float *results = (float *)malloc(population_count * sizeof(float));
   float *results_cpy = (float *)malloc(population_count * sizeof(float));
   int *losers = (int *)malloc(population_count * sizeof(int));
+  int losers_count = 0;
+  int pop = 0;
   puts("Generating pop done for 5M individuals");
 
   timestamp_t t3, t4, t5, t6;
@@ -346,12 +358,22 @@ void run() {
 
 
     // launch kernel
-    rpn_1d = pop_to_1d(rpn_population, POPULATION_SIZE);
     t3 = get_timestamp();
-    prepare_and_run_cuda(rpn_1d, d_features, FEATURE_COUNT, d_results, POPULATION_SIZE, results_cuda);
+    if (y == 0) {
+      pop = POPULATION_SIZE; // should be replace with losers size
+    }
+    else {
+      pop = losers_count;
+    }
+    rpn_1d = pop_to_1d(rpn_population, pop);
+    prepare_and_run_cuda(rpn_1d, d_features, FEATURE_COUNT, d_results, pop, results_cuda);
+
     t4 = get_timestamp();
-    memcpy(results_cpy, results_cuda, population_count * sizeof(float));
-    quicksort(results_cuda, population_count);
+    // MERGE results_cpy back
+    //
+    memcpy(results_cpy, results_cuda, pop * sizeof(float));
+    quicksort(results_cuda, pop);
+
 
     // Start threads
     /*for (i = 0; i < NUMTHREADS; i++) {*/
@@ -380,12 +402,17 @@ void run() {
 
     /*selection(population, population_count, featuresPtr, DATASET_SIZE, results_cpy, threshold);*/
     t5 = get_timestamp();
-    crossover(population, population_count, results_cpy, losers, 0.9);
+    crossover(population, POPULATION_SIZE, results_cpy, losers, 0.9);
+    losers_count = losers_size(losers);
+    pick_pop(population, losers, population_losers);
+    
+
     // Keep index of cross
     // recalc these
     // merge
-    mutate(population, population_count, 0.1);
+    mutate(population, population_count, 0.1); // keep track of mutated
     pop_to_rpn(population, population_count, rpn_population);
+    pop_to_rpn(population_losers, losers_count, rpn_population);
     // to 1d
     /*rpn_1d;*/
     // launch kernel

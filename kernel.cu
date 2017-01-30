@@ -172,10 +172,11 @@ __device__ float tournament_cuda(node *rpn, float *dataset, int dataset_size) {
   return heuristic / dataset_size;
 }
 
-__global__ void run_cuda(node *population, float *features, int features_count, float *results) {
+__global__ void run_cuda(node *population, int pop_size, float *features, int features_count, float *results) {
   int idx = threadIdx.x + blockIdx.x * blockDim.x;
 
-  results[idx] = tournament_cuda(population + (idx * 256), features, DATASET_SIZE);
+  if (idx < pop_size)
+    results[idx] = tournament_cuda(population + (idx * 256), features, DATASET_SIZE);
 }
 
 extern "C"
@@ -194,7 +195,7 @@ void prepare_and_run_cuda(node *population, float *d_features, int features_coun
   // flatten
   printf("CUDA RUN\n");
   cudaDeviceSynchronize();
-  run_cuda<<<BLOCKS, THREADS>>>(d_population, d_features, FEATURE_COUNT, d_results);
+  run_cuda<<<BLOCKS, THREADS>>>(d_population, pop_size, d_features, FEATURE_COUNT, d_results);
 
   cudaMemcpy(results_cuda, d_results, sizeof(float) * pop_size, cudaMemcpyDeviceToHost);
   cudaDeviceSynchronize();

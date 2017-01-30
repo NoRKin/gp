@@ -7,27 +7,26 @@
   /*return now.tv_usec + (timestamp_t)now.tv_sec * 1000000;*/
 /*}*/
 
-void quicksort(float *A, int len)
-{
+void quicksort(float *a, int len) {
   if (len < 2) return;
 
-  float pivot = A[len / 2];
+  float pivot = a[len / 2];
 
   int i, j;
   for (i = 0, j = len - 1; ; i++, j--)
   {
-    while (A[i] < pivot) i++;
-    while (A[j] > pivot) j--;
+    while (a[i] < pivot) i++;
+    while (a[j] > pivot) j--;
 
     if (i >= j) break;
 
-    float temp = A[i];
-    A[i]     = A[j];
-    A[j]     = temp;
+    float temp = a[i];
+    a[i]     = a[j];
+    a[j]     = temp;
   }
 
-  quicksort(A, i);
-  quicksort(A + i, len - i);
+  quicksort(a, i);
+  quicksort(a + i, len - i);
 }
 
 float percentile(float *results, int length, float top) {
