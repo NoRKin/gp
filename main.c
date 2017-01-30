@@ -152,8 +152,8 @@ void crossover(node **population, int population_count, float *results, int *all
   }
 
   // Remove duplicates
-  int removed = rmdup(all_losers, losers_idx);
-  all_losers[losers_idx - removed] = -1;
+  int removed = rmdup(all_losers, losers_idx); // LOSING ALL THE FREAKING INDEXES
+  all_losers[losers_idx - removed] = -1; 
   printf("Losers count %d %d\n", losers_size(all_losers), losers_idx);
   free(compete);
 }
@@ -237,11 +237,34 @@ float *concat(gpthread **gp, float * results) {
 
 void pick_pop(node **population, int *indexes, node **picked) {
   int i = 0;
+  int j = 0;
+  int offset;
 
   while(indexes[i] != -1) {
-    memcpy(picked[i], population[indexes[i]], TREE_SIZE * sizeof(node));
+    /*printf("Pick index %d - %d : op %d\n", i, indexes[i], population[indexes[i]][0].operation);*/
+    /*copy_tree(population[indexes[i]], picked[i], 0);*/
+    offset = 0;
+    tree_to_rpn(population[indexes[i]], 0, picked[i], &offset);
+    picked[i][offset].operation = -2;
+    /*for (j = 0; j < 256; j++) {*/
+      /*picked[i][j].operation = population[indexes[i]][j].operation;*/
+      /*picked[i][j].feature = population[indexes[i]][j].feature;*/
+    /*}*/
+    /*memcpy(picked[i], population[indexes[i]], TREE_SIZE * sizeof(node));*/
     i++;
   }
+  puts("COPY DONE");
+}
+
+void merge_back_results(float *results, float *new_results, int *indexes) {
+  int i = 0;
+
+  while(indexes[i] != -1) {
+    results[indexes[i]] = new_results[i];
+    i++;
+  }
+
+  printf("%d results merged back", i);
 }
 
 void run() {
@@ -274,9 +297,13 @@ void run() {
   puts("Malloc pop for 10k generation (500 pop)");
 
   node **population = (node **)malloc(sizeof(node *) * population_count);
-  node **population_losers = (node **)malloc(sizeof(node *) * population_count);
   for(i = 0; i < population_count; i++) {
     population[i] = (node *)malloc(sizeof(node) * TREE_SIZE);
+  }
+
+  node **population_losers = (node **)malloc(sizeof(node *) * population_count);
+  for(i = 0; i < population_count; i++) {
+    population_losers[i] = (node *)malloc(sizeof(node) * TREE_SIZE);
   }
 
   puts("Generating pop for 10k generation (500 pop)");
@@ -310,10 +337,10 @@ void run() {
 
   // flatten
   for (int i = 0; i < DATASET_SIZE; i++) {
-	  for (x = 0; x < FEATURE_COUNT; x++) {
-		  features_flatten[idx] = featuresPtr[i][x];
-		  idx++;
-	  }
+    for (x = 0; x < FEATURE_COUNT; x++) {
+      features_flatten[idx] = featuresPtr[i][x];
+      idx++;
+    }
   }
 
 
@@ -354,40 +381,69 @@ void run() {
 
   /*node *line = malloc(sizeof(node) * 256);*/
 
+  // tournament
+  rpn_1d = pop_to_1d(rpn_population, POPULATION_SIZE);
+  prepare_and_run_cuda(rpn_1d, d_features, FEATURE_COUNT, d_results, POPULATION_SIZE, results_cuda);
+  memcpy(results, results_cuda, POPULATION_SIZE * sizeof(float));
+  memcpy(results_cpy, results_cuda, POPULATION_SIZE * sizeof(float));
+  losers_count = POPULATION_SIZE;
   for(int y = 0; y < generations; y++) {
 
+    quicksort(results_cpy, POPULATION_SIZE);
+    display_top(results_cpy, 10);
+    crossover(population, POPULATION_SIZE, results_cpy, losers, 0.9);
+    mutate(population, POPULATION_SIZE, 0.99); // keep track of mutated
 
-    // launch kernel
+    losers_count = losers_size(losers);
+    // Take losers
+    puts("PICK POP");
+    pick_pop(population, losers, population_losers);
+    puts("POP TO RPN");
+    /*pop_to_rpn(population_losers, losers_count, rpn_population);*/
+
+    /*pop_to_rpn(population, population_count, rpn_population);*/
+    rpn_1d = pop_to_1d(population_losers, losers_count);
+
+    puts("Go CUDA");
     t3 = get_timestamp();
-    if (y == 0) {
-      pop = POPULATION_SIZE; // should be replace with losers size
-    }
-    else {
-      pop = losers_count;
-    }
-    rpn_1d = pop_to_1d(rpn_population, pop);
-    prepare_and_run_cuda(rpn_1d, d_features, FEATURE_COUNT, d_results, pop, results_cuda);
-
+    prepare_and_run_cuda(rpn_1d, d_features, FEATURE_COUNT, d_results, losers_count, results_cuda);
     t4 = get_timestamp();
+
+    // Merge back to results
+    merge_back_results(results, results_cuda, losers);
+    memcpy(results_cpy, results, POPULATION_SIZE * sizeof(float));
+
+    // Merge back
+
+    /*if (y == 0) {*/
+    /*pop = POPULATION_SIZE; // should be replace with losers size*/
+    /*}*/
+    /*else {*/
+      /*pop = losers_count;*/
+    /*}*/
+    /*rpn_1d = pop_to_1d(rpn_population, pop);*/
+    /*prepare_and_run_cuda(rpn_1d, d_features, FEATURE_COUNT, d_results, pop, results_cuda);*/
+
     // MERGE results_cpy back
+    /*merge_back_results(results, results_cuda, indexes);*/
     //
-    memcpy(results_cpy, results_cuda, pop * sizeof(float));
-    quicksort(results_cuda, pop);
+    /*memcpy(results_cpy, results_cuda, pop * sizeof(float));*/
+    /*quicksort(results_cuda, pop);*/
 
 
     // Start threads
     /*for (i = 0; i < NUMTHREADS; i++) {*/
-      /*pthread_create(&thread[i], NULL, thread_wrapper, gp[i]);*/
+    /*pthread_create(&thread[i], NULL, thread_wrapper, gp[i]);*/
     /*}*/
 
     /*// Wait threads to finish*/
     /*for (i = 0; i < NUMTHREADS; i++) {*/
-      /*pthread_join(thread[i], NULL);*/
+    /*pthread_join(thread[i], NULL);*/
     /*}*/
 
-    /*t4 = get_timestamp();*/
+    t4 = get_timestamp();
 
-    /*t5 = get_timestamp();*/
+    t5 = get_timestamp();
     /*// Concat*/
     /*concat(gp, results);*/
 
@@ -401,18 +457,16 @@ void run() {
     double t_secs = (t4 - t3) / 1000000.0L;
 
     /*selection(population, population_count, featuresPtr, DATASET_SIZE, results_cpy, threshold);*/
-    t5 = get_timestamp();
-    crossover(population, POPULATION_SIZE, results_cpy, losers, 0.9);
-    losers_count = losers_size(losers);
-    pick_pop(population, losers, population_losers);
-    
+    /*t5 = get_timestamp();*/
+    /*crossover(population, POPULATION_SIZE, results_cpy, losers, 0.9);*/
+    /*losers_count = losers_size(losers);*/
+    /*[>pick_pop(population, losers, population_losers);<]*/
 
-    // Keep index of cross
-    // recalc these
-    // merge
-    mutate(population, population_count, 0.1); // keep track of mutated
-    pop_to_rpn(population, population_count, rpn_population);
-    pop_to_rpn(population_losers, losers_count, rpn_population);
+
+    /*mutate(population, population_count, 0.99); // keep track of mutated*/
+
+    /*pop_to_rpn(population, population_count, rpn_population);*/
+    /*pop_to_rpn(population_losers, losers_count, rpn_population);*/
     // to 1d
     /*rpn_1d;*/
     // launch kernel
@@ -420,43 +474,13 @@ void run() {
     t6 = get_timestamp();
     /*if (display_count > 1) {*/
     /*printf("Score: %f\n", naive_average(results_cuda, population_count));*/
-    display_top(results_cuda, 10);
-    /*pos = 0;*/
-    /*tree_to_rpn(population[0], 0, line, &pos);*/
-    /*line[pos].operation = -2;*/
-    /*display_rpn(line, pos);*/
-    /*t5 = get_timestamp();*/
-    /*for (i = 0; i < 10000; i++) {*/
-      /*eval_rpn(line, featuresPtr[0]);*/
-    /*};*/
-    /*printf("RPN RESULT IS %f\n",   logloss(featuresPtr[0][FEATURE_COUNT], eval_rpn(line, featuresPtr[0])));*/
-    /*t6 = get_timestamp();*/
+    /*display_top(results_cuda, 10);*/
+
     double t_secs2 = (t6 - t5) / 1000000.0L;
-    /*printf("RPN took: %.6f ms\n", t_secs2);*/
-    /*fflush(stdout);*/
-    /*t5 = get_timestamp();*/
-    /*for (i = 0; i < 10000; i++) {*/
-      /*evaluate_tree(population[0], 0, featuresPtr[0]);*/
-    /*};*/
-    /*printf("TREE RESULT IS %f\n",  logloss(featuresPtr[0][FEATURE_COUNT], evaluate_tree(population[0], 0, featuresPtr[0])));*/
-    /*t6 = get_timestamp();*/
-    /*t_secs2 = (t6 - t5);*/
-    /*printf("TREE took: %.6f ms\n", t_secs2);*/
-    /*display_count = 0;*/
     printf("Generation : %d\n", y);
     printf("Tournament took: %.5f s\n", t_secs);
     printf("Crossover/Mutation took: %.5f s\n", t_secs2);
-    /*}*/
-
-    /*display_count++;*/
   }
-
-  /*for (i = 0; i < NUMTHREADS; i++) {*/
-    /*free(gp[i]->results);*/
-  /*}*/
-
-  /*free(results);*/
-  /*free(results_cpy);*/
 
   t2 = get_timestamp();
   secs = (t2 - t1) / 1000000.0L;

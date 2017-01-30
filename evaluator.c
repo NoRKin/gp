@@ -109,7 +109,7 @@ void mutate_tree(node **population, int from, int offset, int chances) {
       population[from][offset].operation = rand() % OPERATION_COUNT;
     }
     else {
-      population[from][offset].feature = rand() % 21; // FEATURE_COUNT
+      population[from][offset].feature = rand() % FEATURE_COUNT; // FEATURE_COUNT
     }
     // Mutate
     return ;
@@ -118,11 +118,11 @@ void mutate_tree(node **population, int from, int offset, int chances) {
   if (population[from][offset].operation != -1) {
     int left_or_right = rand() % 2 + 1;
 
-    mutate_tree(population, from, offset + 2 + left_or_right, chances - 10);
+    mutate_tree(population, from, offset + 2 + left_or_right, chances - 20);
   }
   else {
     // Terminal .. mutate();
-    population[from][offset].feature = rand() % 50; // FEATURE_COUNT
+    population[from][offset].feature = rand() % FEATURE_COUNT; // FEATURE_COUNT
   }
 }
 
@@ -146,7 +146,7 @@ void copy_branch(node **population, int from, int to, int offset_from, int offse
     }
     else {
       // TOO LONG, we replace it with a terminal node (we assume mutation at the same time)
-      population[to][offset_to].feature = rand() % 50; // FEATURE_COUNT
+      population[to][offset_to].feature = rand() % FEATURE_COUNT;
       population[to][offset_to].operation = -1;
     }
 
@@ -179,6 +179,23 @@ void tree_to_rpn(node *memspace, int offset, node *to, int *to_offset) {
     to[*to_offset].feature = memspace[offset].feature;
     to[*to_offset].operation = -1;
     (*to_offset)++;
+  }
+}
+
+void copy_tree(node *from, node *to, int offset) {
+    /*printf("COPY TREE %d\n", offset);*/
+  if (from[offset].operation != -1) {
+    to[offset].operation = from[offset].operation;
+
+    copy_tree(from, to, offset * 2 + 1);
+    copy_tree(from, to, offset * 2 + 2);
+
+    /*printf("COPY OPERATION\n");*/
+  }
+  else {
+    // Term node
+    /*to[offset].feature = from[offset].feature;*/
+    /*to[offset].operation = -1;*/
   }
 }
 
