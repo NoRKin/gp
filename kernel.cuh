@@ -2,14 +2,10 @@
 #include "cuda.h"
 #include "cuda_runtime.h"
 #include <stdio.h>
+#include "constants.h"
 
 #ifndef KERNEL_H_
 #define KERNEL_H_
-
-#define THREADS 32 
-#define BLOCKS 16 
-#define FEATURE_COUNT 50
-#define DATASET_SIZE 40000
 
 #ifdef __cplusplus
   extern "C"

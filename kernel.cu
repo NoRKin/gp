@@ -175,20 +175,7 @@ __device__ float tournament_cuda(node *rpn, float *dataset, int dataset_size) {
 __global__ void run_cuda(node *population, float *features, int features_count, float *results) {
   int idx = threadIdx.x + blockIdx.x * blockDim.x;
 
-  /*display_rpn_cuda(population + (idx * sizeof(node) * 256 - 1));*/
-  /*if (idx == 0) {*/
-    /*printf("CUDA TOURNAMENT idx 0: %d\n", idx);*/
-    /*display_rpn_cuda(population + (idx * sizeof(node)));*/
-  /*}*/
-
-  /*if (idx == 1) {*/
-    /*printf("CUDA TOURNAMENT idx 1: %d\n", idx);*/
-    /*display_rpn_cuda(population + (idx * 256));*/
-  /*}*/
-
   results[idx] = tournament_cuda(population + (idx * 256), features, DATASET_SIZE);
-
-  /*printf("CUDA TOURNAMENT 2 idx: %d - logloss %f\n", idx, tournament_cuda(population + (idx * 256), features, 100000));*/
 }
 
 extern "C"
@@ -204,31 +191,10 @@ void prepare_and_run_cuda(node *population, float *d_features, int features_coun
   // features should be already malloc and copied
 
   // Results should also be already malloc and copied
-  // cudaMalloc results
-  int idx = 0;
-  int x = 0;
-  int rows = DATASET_SIZE;
-  int cols = 50;
-
-  //float *d_features;
-  //float *features_flatten = (float *)malloc(sizeof(float) * rows * cols);
-
   // flatten
-  //for (int i = 0; i < rows; i++) {
-  //  for (x = 0; x < cols; x++) {
-  //    features_flatten[idx] = features[i][x];
-  //    idx++;
-  //  }
-  //}
-
-  //cudaMalloc((void**)&d_features, (rows * cols) * sizeof(float));
-  //cudaMemcpy(d_features, features_flatten, rows * cols * sizeof(float), cudaMemcpyHostToDevice);
-
-
   printf("CUDA RUN\n");
   cudaDeviceSynchronize();
   run_cuda<<<BLOCKS, THREADS>>>(d_population, d_features, FEATURE_COUNT, d_results);
-
 
   cudaMemcpy(results_cuda, d_results, sizeof(float) * pop_size, cudaMemcpyDeviceToHost);
   cudaDeviceSynchronize();
@@ -237,12 +203,7 @@ void prepare_and_run_cuda(node *population, float *d_features, int features_coun
   if (err != cudaSuccess)
     printf("CUDA Error: %s\n", cudaGetErrorString(err));
 
-
-
-
-  /*cudaMemcpy(c, d_c, size, cudaMemcpyDeviceToHost);*/
   cudaFree(d_population);
-  //cudaFree(d_features);
 }
 
 /*__host__ void copy_features_cuda(const float **features, int rows, int cols, float *d_features) {*/

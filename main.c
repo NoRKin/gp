@@ -13,7 +13,7 @@
 #include "utils.h"
 
 #include "kernel.cuh"
-
+#include "constants.h"
 // TODO RECALC ONLY MODIFIED TREES
 // TODO CUDA
 //          - Copy results back to device
@@ -23,14 +23,6 @@
 //
 //
 // TODO JS INTERPRETER
-
-#define DEBUG 0
-#define MAX_DEPTH 4
-#define DATASET_SIZE 100000
-#define FEATURE_COUNT 50
-#define TREE_SIZE 256
-#define POPULATION_SIZE 512 
-#define NUMTHREADS 1
 
 static timestamp_t get_timestamp() {
   struct timeval now;
@@ -58,7 +50,6 @@ void copy_features_cuda(const float **features, int rows, int cols, float *d_fea
   free(features_flatten);
 }
 
-
 node *pop_to_1d(node **rpn_population, int population_count) {
   int idx = 0;
   int x = 0;
@@ -85,17 +76,42 @@ void pop_to_rpn(node **population, int population_count, node** rpn_population) 
   }
 }
 
-void crossover(node **population, int population_count, float *results, float percentage) {
-  int max_pop = floor(population_count * percentage);
+int rmdup(int *array, int length) {
+  int *current , *end = array + length - 1;
+  int removed = 0;
+
+  for (current = array + 1; array < end; array++, current = array + 1) {
+    while (current <= end) {
+      if (*current == *array) {
+        *current = *end--;
+        removed++;
+      }
+      else {
+        current++;
+      }
+    }
+  }
+
+  return removed;
+}
+
+int losers_size(int *losers) {
   int i = 0;
-  int x = 0;
+  while (losers[i] != -1) {
+    i++;
+  }
+
+  return i;
+}
+
+void crossover(node **population, int population_count, float *results, int *all_losers, float percentage) {
+  int max_pop = floor(population_count * (percentage / 2));
+  int i = 0;
+  int losers_idx = 0;
 
   int winners[2];
   int losers[2];
   int *compete = (int *)malloc(sizeof(int) * 4);
-
-  int offset = 0;
-  int depth = 0;
 
   int offsetFrom = 0;
   int offsetTo = 0;
@@ -106,9 +122,14 @@ void crossover(node **population, int population_count, float *results, float pe
 
     winners[0] = minIndex(results, compete[0], compete[1]);
     losers[0]  = maxIndex(results, compete[0], compete[1]);
+    all_losers[losers_idx] = losers[0];
+    losers_idx++;
 
     winners[1] = minIndex(results, compete[2], compete[3]);
     losers[1]  = maxIndex(results, compete[2], compete[3]);
+    all_losers[losers_idx] = losers[0];
+    losers_idx++;
+
     /*puts("After min");*/
 
     /*puts("Before min");*/
@@ -130,11 +151,15 @@ void crossover(node **population, int population_count, float *results, float pe
     copy_branch(population, winners[0], losers[1], offsetFrom, offsetTo);
   }
 
+  // Remove duplicates
+  int removed = rmdup(all_losers, losers_idx);
+  all_losers[losers_idx - removed] = -1;
+  printf("Losers count %d %d\n", losers_size(all_losers), losers_idx);
   free(compete);
 }
 
 
-void mutate(node **population, int population_count, float *results, float percentage) {
+void mutate(node **population, int population_count, float percentage) {
   int max_pop = floor(population_count * percentage);
   int i = 0;
   int node_index = 0;
@@ -162,39 +187,24 @@ double logloss(double actual, double predicted) {
   return - (actual * logf(predicted) + (1 - actual) * logf(1 - predicted));
 }
 
-void tournament(node **population, int population_count, const float **dataset, int dataset_size, int start, int end, float *results) {
+void tournament(node **population, int population_count, const float **dataset, int start, int end, float *results) {
   float heuristic = 0;
   float result = 0;
   int i = 0;
-  int j = 0;
   int x = 0;
 
   for(i = 0; i < population_count; i++) {
     for(x = start; x < end; x++) {
-      /*heuristic += logloss(dataset[x][FEATURE_COUNT], evaluate_tree(population[i], 0, dataset[x]));*/
       result = logloss(dataset[x][FEATURE_COUNT], eval_rpn(population[i], dataset[x]));
       /*result = eval_rpn(population[i], dataset[x]);*/
-
-      /*if (j < 2) {*/
-        /*printf("Result for %d is %f : %f\n", j, result, heuristic);*/
-        /*display_rpn(population[i]);*/
-        /*display_feature_line(dataset[x], 50);*/
-        /*j++;*/
-      /*}*/
 
       if (isnan(result) || isinf(result) || result < 0)
         heuristic += 10;
       else
         heuristic += result;
-      /*printf("Heuristic is %f\n", heuristic);*/
-      /*heuristic = 0;*/
-      /*puts("Go");*/
     }
 
     results[i] = heuristic / ((end - start));
-    /*if (isnan(results[i])) {*/
-      /*results[i] = 10;*/
-    /*}*/
     heuristic = 0;
   }
 
@@ -205,7 +215,9 @@ void tournament(node **population, int population_count, const float **dataset, 
 void *thread_wrapper(void *data) {
   gpthread* gp = (gpthread *) data;
 
-  tournament(gp->population, gp->population_count, gp->features, DATASET_SIZE, gp->start, gp->end, gp->results);
+  tournament(gp->population, gp->population_count, gp->features, gp->start, gp->end, gp->results);
+
+  return NULL;
 }
 
 float *concat(gpthread **gp, float * results) {
@@ -223,9 +235,13 @@ float *concat(gpthread **gp, float * results) {
   return results;
 }
 
-
 void run() {
-  gpthread **gp = malloc(sizeof(gpthread *) * NUMTHREADS);
+  if (THREADS * BLOCKS != POPULATION_SIZE) {
+    printf("ERROR POPULATION_SIZE AND BLOCKS ARE DIFFERENT SIZE\n");
+    exit(-1);
+  }
+
+  gpthread **gp = (gpthread **)malloc(sizeof(gpthread *) * NUMTHREADS);
 
   FILE *datasetFile = fopen("./data/numerai_training_data.csv", "r");
   float const **featuresPtr = (float const **)feature_fromFile(datasetFile, DATASET_SIZE, FEATURE_COUNT);
@@ -237,7 +253,7 @@ void run() {
   //copy_features_cuda(featuresPtr, DATASET_SIZE, FEATURE_COUNT, d_features);
 
   float *d_results;
-  float *results_cuda = malloc(sizeof(float) * POPULATION_SIZE);
+  float *results_cuda = (float *)malloc(sizeof(float) * POPULATION_SIZE);
   cudaMalloc((void **)&d_results, POPULATION_SIZE * sizeof(float));
 
   int i = 0;
@@ -248,9 +264,9 @@ void run() {
 
   puts("Malloc pop for 10k generation (500 pop)");
 
-  node **population = malloc(sizeof(node *) * population_count);
+  node **population = (node **)malloc(sizeof(node *) * population_count);
   for(i = 0; i < population_count; i++) {
-    population[i] = malloc(sizeof(node) * TREE_SIZE);
+    population[i] = (node *)malloc(sizeof(node) * TREE_SIZE);
   }
 
   puts("Generating pop for 10k generation (500 pop)");
@@ -262,7 +278,7 @@ void run() {
   }
 
   // Copy population to rpn representation
-  node **rpn_population = malloc(sizeof(node *) * population_count);
+  node **rpn_population = (node **)malloc(sizeof(node *) * population_count);
 
   pop_to_rpn(population, population_count, rpn_population);
 
@@ -273,8 +289,8 @@ void run() {
   /*prepare_and_run_cuda(rpn_1d, featuresPtr, FEATURE_COUNT, d_results, POPULATION_SIZE, results_cuda);*/
   timestamp_t t2 = get_timestamp();
   double secs = (t2 - t1) / 1000000.0L;
-  
- 
+
+
   /*printf("CUDA RPN TOOK: %.5f s\n", secs);*/
 
   int idx = 0;
@@ -300,10 +316,10 @@ void run() {
 
   for (i = 0; i < NUMTHREADS; i++) {
 
-    gp[i] = malloc(sizeof(gpthread));
+    gp[i] = (gpthread *)malloc(sizeof(gpthread));
     gp[i]->features = featuresPtr;
     gp[i]->population_count = POPULATION_SIZE;
-    gp[i]->results = malloc(POPULATION_SIZE * sizeof(float));
+    gp[i]->results = (float *)malloc(POPULATION_SIZE * sizeof(float));
     /*gp[i]->population = population;*/
     gp[i]->population = rpn_population;
     gp[i]->start = i * (DATASET_SIZE / NUMTHREADS);
@@ -316,8 +332,9 @@ void run() {
     printf("Thread %d prepared:start from %d, end at %d\n", i, gp[i]->start, gp[i]->end);
   }
 
-  float *results = malloc(population_count * sizeof(float));
-  float *results_cpy = malloc(population_count * sizeof(float));
+  float *results = (float *)malloc(population_count * sizeof(float));
+  float *results_cpy = (float *)malloc(population_count * sizeof(float));
+  int *losers = (int *)malloc(population_count * sizeof(int));
   puts("Generating pop done for 5M individuals");
 
   timestamp_t t3, t4, t5, t6;
@@ -363,8 +380,11 @@ void run() {
 
     /*selection(population, population_count, featuresPtr, DATASET_SIZE, results_cpy, threshold);*/
     t5 = get_timestamp();
-    crossover(population, population_count, results_cpy, 0.4);
-    mutate(population, population_count, results_cpy, 0.1);
+    crossover(population, population_count, results_cpy, losers, 0.9);
+    // Keep index of cross
+    // recalc these
+    // merge
+    mutate(population, population_count, 0.1);
     pop_to_rpn(population, population_count, rpn_population);
     // to 1d
     /*rpn_1d;*/
