@@ -158,30 +158,6 @@ void copy_branch(node **population, int from, int to, int offset_from, int offse
   }
 }
 
-void tree_to_rpn(node *memspace, int offset, node *to, int *to_offset) {
-  if (memspace[offset].operation != -1) {
-    // Left
-    /*printf("(");*/
-    tree_to_rpn(memspace, offset * 2 + 1, to, to_offset);
-
-    /*printf("%c", operation_label(memspace[offset].operation));*/
-    // Right
-    tree_to_rpn(memspace, offset * 2 + 2, to, to_offset);
-    /*printf(")");*/
-    // stack_push
-    to[*to_offset].operation = memspace[offset].operation;
-    (*to_offset)++;
-    /*printf("(_%f)", features[memspace[offset].feature);*/
-    /*return operation_run(memspace[offset].operation, left, right);*/
-  }
-  else {
-    // Term node
-    to[*to_offset].feature = memspace[offset].feature;
-    to[*to_offset].operation = -1;
-    (*to_offset)++;
-  }
-}
-
 void copy_tree(node *from, node *to, int offset) {
     /*printf("COPY TREE %d\n", offset);*/
   if (from[offset].operation != -1) {

@@ -35,9 +35,14 @@ float percentile(float *results, int length, float top) {
   return results[portionIndex];
 }
 
-void display_top(float *results, int n) {
+void display_top(float *results, int results_size, int n) {
+  float * _results = malloc(sizeof(float) * results_size);
+  memcpy(_results, results, results_size * sizeof(float));
+
+  quicksort(_results, results_size);
+
   for (int i = 0; i < n; i++) {
-    printf("Position: %d\t Score: %f\n", i, results[i]);
+    printf("Position: %d\t Score: %f\n", i, _results[i]);
   }
 }
 
@@ -103,8 +108,7 @@ int minIndex(float *results, int a, int b) {
 }
 
 bool contains(int *array, int number) {
-  int i = 0;
-  for (i = 0; i < 4; i++) {
+  for (int i = 0; i < 4; i++) {
     if (array[i] == number)
       return true;
   }
@@ -113,10 +117,29 @@ bool contains(int *array, int number) {
 }
 
 
+int rmdup(int *array, int length) {
+  int *current, *end = array + length - 1;
+  int removed = 0;
+
+  for (current = array + 1; array < end; array++, current = array + 1) {
+    while (current <= end) {
+      if (*current == *array) {
+        *current = *end--;
+        removed++;
+      }
+      else {
+        current++;
+      }
+    }
+  }
+
+  return removed;
+}
+
+
 void uniq_rand(int *numbers, int max, int min) {
   int i = 0;
   int value = 0;
-  /*printf("UNIQU RAND Val is %d\n", value);*/
   for (i = 0; i < 4; i++) {
     while (contains(numbers, value)) {
       value = (rand() % max) + min;
@@ -127,4 +150,20 @@ void uniq_rand(int *numbers, int max, int min) {
     /*printf("UNIQU RAND Val is %d, %d\n", i, value);*/
     numbers[i] = value;
   }
+}
+
+
+float *concat(gpthread **gp, float *results, int pop_size, int thread_count) {
+  float result = 0;
+
+  for (int i = 0; i < pop_size; i++) {
+    result = 0;
+    for (int j = 0; j < thread_count; j++) {
+      result += gp[j]->results[i];
+    }
+
+    results[i] = result / thread_count;
+  }
+
+  return results;
 }

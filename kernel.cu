@@ -166,7 +166,7 @@ __device__ float tournament_cuda(node *rpn, float *dataset, int dataset_size) {
     /*if (i > 0)*/
       /*heuristic /= 2;*/
     // sync threads
-    /*__syncthreads();*/
+    __syncthreads();
   }
 
   return heuristic / dataset_size;

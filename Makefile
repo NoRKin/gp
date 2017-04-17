@@ -6,6 +6,7 @@ EXE   = gp
 
 SOURCES  = $(SOURCEDIR)/evaluator.c \
 	   $(SOURCEDIR)/operation.c \
+           $(SOURCEDIR)/population.c \
 	   $(SOURCEDIR)/operation.c \
            $(SOURCEDIR)/generator.c \
            $(SOURCEDIR)/feature_parser.c \
@@ -34,3 +35,8 @@ $(SOURCEDIR)/%.o : $(SOURCEDIR)/%.cu
 
 clean:
 	rm -f *.o $(EXE)
+
+re: clean
+	make
+
+
